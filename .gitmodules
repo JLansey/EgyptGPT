@@ -1,0 +1,3 @@
+[submodule "hiero_transformer"]
+	path = hiero_transformer
+	url = https://github.com/mattia-decao/hiero-transformer.git
