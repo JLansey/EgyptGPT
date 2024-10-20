@@ -94,11 +94,11 @@ def gardiner_to_hieroglyphics(gardiner_string):
     return '\n'.join(convert_line(line) for line in gardiner_string.splitlines()).replace("-", "")
 
 
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load model directly
 tokenizer = AutoTokenizer.from_pretrained("mattiadc/hiero-transformer")
-model = AutoModelForSeq2SeqLM.from_pretrained("mattiadc/hiero-transformer")
+model = AutoModelForSeq2SeqLM.from_pretrained("mattiadc/hiero-transformer").to(device)
 
 
 # # Example usage
