@@ -6,9 +6,10 @@ import torch
 import re
 from gardiner2unicode import GardinerToUnicodeMap
 
-
  # code for translating
-def translate_long_text(source_lang, target_lang, text, max_chars=128):
+def translate_long_text(text, max_chars=128):
+    source_lang = 'ea'  # hieroglyphic input
+    target_lang = 'en'  # English output
     def translate_chunk(source_lang, target_lang, text):
         with torch.no_grad():
             tokenizer.src_lang = lang_to_m2m_lang_id[source_lang]
@@ -56,21 +57,41 @@ def translate_long_text(source_lang, target_lang, text, max_chars=128):
     return ' '.join(translations)
 
 
+
 def gardiner_to_hieroglyphics(gardiner_string):
     g2u = GardinerToUnicodeMap()
 
     # Regular expression to find valid Gardiner codes (e.g., "A1", "R4", etc.)
-    # This can be adjusted based on the exact valid pattern for Gardiner codes
     gardiner_pattern = re.compile(r'[A-Za-z]+[0-9]+')
 
+    def convert_code(code):
+        try:
+            unicode_hex = g2u.to_unicode_hex(code)
+            if unicode_hex and isinstance(unicode_hex, str):
+                return chr(int(unicode_hex, 16))
+            else:
+                return f"[{code}]"  # Return the original code in brackets if no valid Unicode equivalent
+        except (ValueError, TypeError):
+            return f"[{code}]"  # Return the original code in brackets if conversion fails
+
     def convert_line(line):
-        # Extract all Gardiner codes that match the pattern and convert them
-        codes = gardiner_pattern.findall(line)
-        return ''.join(chr(int(g2u.to_unicode_hex(code), 16)) for code in codes)
+        if not isinstance(line, str):
+            return str(line)  # Convert non-string inputs to strings
+        result = []
+        last_end = 0
+        for match in gardiner_pattern.finditer(line):
+            result.append(line[last_end:match.start()])  # Add text between matches
+            result.append(convert_code(match.group()))
+            last_end = match.end()
+        result.append(line[last_end:])  # Add any remaining text
+        return ''.join(result)
+
+    # Handle potential non-string input
+    if not isinstance(gardiner_string, str):
+        return convert_line(gardiner_string)
 
     # Process each line separately, preserving line breaks
-    return '\n'.join(convert_line(line) for line in gardiner_string.splitlines())
-
+    return '\n'.join(convert_line(line) for line in gardiner_string.splitlines()).replace("-", "")
 
 
 

@@ -19,7 +19,7 @@ input_file_path = os.path.join(cur_path, 'cleaned_graphics.txt')
 print(f"input path is: {input_file_path}")
 
 
-if not os.path.exists(input_file_path):
+if True: # not os.path.exists(input_file_path):
     json_path = os.path.join(cur_path, 'validation_data.json')
     print(json_path)
 
@@ -34,10 +34,16 @@ if not os.path.exists(input_file_path):
             if item['source']:
                 cur_item = utils.clean_graphics(item['source'])
                 all_sources.append(cur_item)
-            
-        cleaned_graphics = "/n".join(all_sources)
-        print("\nCLEANING COMPLETE.")
+
+        # remove duplicates   
+        all_sources = list(set(all_sources))
+
+        # print the file
+        cleaned_graphics = "\n".join(all_sources)
         matviz.etl.write_string(input_file_path, cleaned_graphics)
+
+        print("\nCLEANING COMPLETE.")
+
 
 
 with open(input_file_path, 'r') as f:
