@@ -11,28 +11,34 @@ import numpy as np
 
 from hiero_transformer import utils
 import matviz
+from tqdm import tqdm
 
 # download the tiny shakespeare dataset
 cur_path = os.path.dirname(__file__)
 input_file_path = os.path.join(cur_path, 'cleaned_graphics.txt')
+print(f"input path is: {input_file_path}")
+
+
 if not os.path.exists(input_file_path):
-    json_path = os.path.join(cur_path, 'training_data.json')
+    json_path = os.path.join(cur_path, 'validation_data.json')
+    print(json_path)
+
     if not os.path.exists(json_path):
         raise Exception("Please run setup.sh to get the training data from the egypt repo")
-
-        print("cleaning the training data")
+    else:
+        print("CLEANING THE DATA")
         graphics_data = utils.load_data_from_folder(cur_path)
-
         # clean the hieroglyphics data
         all_sources = []
-        for item in graphics_data:
+        for item in tqdm(graphics_data):
             if item['source']:
-                item['source'] = utils.clean_graphics(item['source'])
-                all_sources.append(item)
-
+                cur_item = utils.clean_graphics(item['source'])
+                all_sources.append(cur_item)
+            
         cleaned_graphics = "/n".join(all_sources)
-
+        print("\nCLEANING COMPLETE.")
         matviz.etl.write_string(input_file_path, cleaned_graphics)
+
 
 with open(input_file_path, 'r') as f:
     data = f.read()
@@ -77,10 +83,3 @@ meta = {
 }
 with open(os.path.join(os.path.dirname(__file__), 'meta.pkl'), 'wb') as f:
     pickle.dump(meta, f)
-
-# length of dataset in characters:  1115394
-# all the unique characters:
-#  !$&',-.3:;?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
-# vocab size: 65
-# train has 1003854 tokens
-# val has 111540 tokens
