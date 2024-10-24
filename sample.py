@@ -14,7 +14,10 @@ out_dir = 'out' # ignored if init_from is not 'resume'
 start = "\n" # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 num_samples = 10 # number of samples to draw
 max_new_tokens = 500 # number of tokens generated in each sample
+
+
 temperature = 0.8 # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
+
 top_k = 200 # retain only the top_k most likely tokens, clamp others to have 0 probability
 seed = 1337
 device = 'cuda' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1', etc.
@@ -80,10 +83,32 @@ if start.startswith('FILE:'):
 start_ids = encode(start)
 x = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])
 
-# run generation
-with torch.no_grad():
-    with ctx:
-        for k in range(num_samples):
-            y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
-            print(decode(y[0].tolist()))
-            print('---------------')
+# # run generation
+# with torch.no_grad():
+#     with ctx:
+#         for k in range(num_samples):
+#             y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
+#             print(decode(y[0].tolist()))
+
+
+# Open the file in write mode (or append mode if you want to keep previous results)
+for temperature in [0.7, 0.8, 0.9, 1.0]:
+    with open(f"out/output_{temperature}.txt", "w") as f: 
+        # Run generation
+        with torch.no_grad():
+            with ctx:
+                    for k in range(num_samples):
+                        # Generate the output
+                        y = model.generate(x, max_new_tokens, temperature=temperature, top_k=top_k)
+                        decoded_text = decode(y[0].tolist())
+                        
+                        # Write to file
+                        f.write(decoded_text + "\n")
+                        f.flush()  # Ensure it's written immediately
+
+                        # Print progress every 100 iterations
+                        if (k + 1) % 100 == 0:
+                            print(f"Processed {k + 1}/{num_samples} samples")
+
+
+    print("Generation completed.")
