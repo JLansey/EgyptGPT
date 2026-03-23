@@ -24,10 +24,10 @@ n_head = 4
 n_embd = 256
 dropout = 0.0
 
-learning_rate = 5e-4 # lower LR
+learning_rate = 1e-3 # higher LR with cosine decay
 max_iters = 50000
 lr_decay_iters = 2500 # match approx actual steps for proper cosine decay
-min_lr = 5e-5 # learning_rate / 10
+min_lr = 1e-4 # learning_rate / 10
 beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
 
 warmup_iters = 20 # short warmup for stable LR
