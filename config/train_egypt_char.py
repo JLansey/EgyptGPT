@@ -23,16 +23,16 @@ block_size = 256 # context of up to 256 sign tokens (~870 chars)
 n_layer = 3
 n_head = 4
 n_embd = 256
-dropout = 0.0
+dropout = 0.3  # regularize against overfitting on smaller sign-level dataset
 
-learning_rate = 1e-3 # higher LR with cosine decay
+learning_rate = 1e-3
 max_iters = 50000
-lr_decay_iters = 2200 # slightly faster decay to reach min_lr
-min_lr = 0 # decay to zero
+lr_decay_iters = 6000  # longer decay for sign-level (dataset is 3.4x smaller)
+min_lr = 0
 beta2 = 0.99
 
-warmup_iters = 20 # short warmup for stable LR
-grad_clip = 0.5 # tighter gradient clipping
+warmup_iters = 20
+grad_clip = 0.5
 
 # on macbook also add
 # device = 'cpu'  # run on cpu only
