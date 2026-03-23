@@ -27,7 +27,7 @@ dropout = 0.3  # regularize against overfitting on smaller sign-level dataset
 
 learning_rate = 1e-3
 max_iters = 50000
-lr_decay_iters = 6000  # longer decay for sign-level (dataset is 3.4x smaller)
+lr_decay_iters = 4000  # shorter decay
 min_lr = 0
 beta2 = 0.99
 
