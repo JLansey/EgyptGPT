@@ -143,7 +143,7 @@ c3d4e5f	1.901000	2.0	discard	switch to ReLU squared
 d4e5f6g	0.000000	0.0	crash	double model width (OOM)
 ```
 
-Do not commit results.tsv — leave it untracked by git.
+Do not commit results.tsv — it must stay untracked to survive git resets on discarded experiments. If running on Colab, also copy it to Google Drive after each experiment for persistence.
 
 ## The experiment loop
 
@@ -157,7 +157,7 @@ LOOP FOREVER:
 4. Run the experiment: `python train.py config/train_egypt_char.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
 5. Read out the results: `grep "^val_bpb:\|^peak_vram_mb:" run.log`
 6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
-7. Record the results in results.tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
+7. Record the results in results.tsv (do NOT commit results.tsv — it must survive git resets)
 8. If val_bpb improved (lower), you "advance" the branch, keeping the git commit
 9. If val_bpb is equal or worse, you git reset back to where you started
 
