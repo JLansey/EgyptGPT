@@ -19,7 +19,7 @@ batch_size = 32
 block_size = 256 # context of up to 256 previous characters
 
 # smaller model for more steps
-n_layer = 2
+n_layer = 3
 n_head = 4
 n_embd = 256
 dropout = 0.0
