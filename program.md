@@ -1,6 +1,6 @@
 # EgyptGPT autoresearch
 
-Autonomous research agent for optimizing a character-level GPT model trained on Egyptian hieroglyphic sequences (Gardiner notation).
+Autonomous research agent for optimizing a character-level GPT model trained on Egyptian hieroglyphic sequences.
 
 ## Setup
 
@@ -63,7 +63,7 @@ python train.py config/train_egypt_char.py
 
 ## Ideas to explore
 
-These are techniques from state-of-the-art small LLM research (from Karpathy's nanochat/autoresearch and related work). The agent is encouraged to try them, but should exercise judgment about what's likely to help given this specific small, character-level task.
+These are techniques from state-of-the-art small LLM research. The agent is encouraged to try them, but should exercise judgment about what's likely to help given this specific small, character-level task.
 
 ### Architecture changes
 
