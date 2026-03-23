@@ -31,6 +31,7 @@ min_lr = 1e-4 # learning_rate / 10
 beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
 
 warmup_iters = 20 # short warmup for stable LR
+grad_clip = 0.5 # tighter gradient clipping
 
 # on macbook also add
 # device = 'cpu'  # run on cpu only
