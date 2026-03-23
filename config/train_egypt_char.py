@@ -20,8 +20,8 @@ block_size = 256 # context of up to 256 previous characters
 
 # smaller model for more steps
 n_layer = 2
-n_head = 6
-n_embd = 384
+n_head = 4
+n_embd = 256
 dropout = 0.0
 
 learning_rate = 5e-4 # lower LR
