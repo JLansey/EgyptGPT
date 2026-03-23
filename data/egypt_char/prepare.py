@@ -10,7 +10,7 @@ import requests
 import numpy as np
 
 from hiero_transformer import utils
-import matviz
+from matviz.etl import write_string
 from tqdm import tqdm
 
 # download the tiny shakespeare dataset
@@ -40,7 +40,7 @@ if True: # not os.path.exists(input_file_path):
 
         # print the file
         cleaned_graphics = "\n".join(all_sources)
-        matviz.etl.write_string(input_file_path, cleaned_graphics)
+        write_string(input_file_path, cleaned_graphics)
 
         print("\nCLEANING COMPLETE.")
 
