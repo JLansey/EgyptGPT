@@ -18,8 +18,8 @@ gradient_accumulation_steps = 1
 batch_size = 32
 block_size = 256 # context of up to 256 previous characters
 
-# baby GPT model :)
-n_layer = 6
+# smaller model for more steps
+n_layer = 4
 n_head = 6
 n_embd = 384
 dropout = 0.0
