@@ -26,6 +26,23 @@ class LayerNorm(nn.Module):
     def forward(self, input):
         return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
 
+def precompute_rope_freqs(head_dim, max_seq_len, theta=10000.0):
+    """Precompute cos/sin frequencies for RoPE."""
+    freqs = 1.0 / (theta ** (torch.arange(0, head_dim, 2).float() / head_dim))
+    t = torch.arange(max_seq_len).float()
+    freqs = torch.outer(t, freqs)  # (T, head_dim/2)
+    return torch.cos(freqs), torch.sin(freqs)  # each (T, head_dim/2)
+
+def apply_rope(x, cos, sin):
+    """Apply rotary embeddings to x of shape (B, nh, T, hs)."""
+    T = x.size(2)
+    cos = cos[:T].unsqueeze(0).unsqueeze(0)  # (1, 1, T, hs/2)
+    sin = sin[:T].unsqueeze(0).unsqueeze(0)
+    x1 = x[..., ::2]
+    x2 = x[..., 1::2]
+    out = torch.stack([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
+    return out.flatten(-2)
+
 class CausalSelfAttention(nn.Module):
 
     def __init__(self, config):
@@ -41,11 +58,15 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.dropout = config.dropout
+        # RoPE frequencies
+        head_dim = config.n_embd // config.n_head
+        cos, sin = precompute_rope_freqs(head_dim, config.block_size)
+        self.register_buffer('rope_cos', cos)
+        self.register_buffer('rope_sin', sin)
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         if not self.flash:
             print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
-            # causal mask to ensure that attention is only applied to the left in the input sequence
             self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
                                         .view(1, 1, config.block_size, config.block_size))
 
@@ -57,6 +78,10 @@ class CausalSelfAttention(nn.Module):
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+        # apply RoPE to q and k
+        q = apply_rope(q, self.rope_cos, self.rope_sin)
+        k = apply_rope(k, self.rope_cos, self.rope_sin)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
@@ -124,7 +149,6 @@ class GPT(nn.Module):
 
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
-            wpe = nn.Embedding(config.block_size, config.n_embd),
             drop = nn.Dropout(config.dropout),
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f = LayerNorm(config.n_embd, bias=config.bias),
@@ -149,13 +173,9 @@ class GPT(nn.Module):
     def get_num_params(self, non_embedding=True):
         """
         Return the number of parameters in the model.
-        For non-embedding count (default), the position embeddings get subtracted.
-        The token embeddings would too, except due to the parameter sharing these
-        params are actually used as weights in the final layer, so we include them.
+        With RoPE, there are no position embeddings to subtract.
         """
         n_params = sum(p.numel() for p in self.parameters())
-        if non_embedding:
-            n_params -= self.transformer.wpe.weight.numel()
         return n_params
 
     def _init_weights(self, module):
@@ -170,12 +190,9 @@ class GPT(nn.Module):
         device = idx.device
         b, t = idx.size()
         assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
-        pos = torch.arange(0, t, dtype=torch.long, device=device) # shape (t)
-
-        # forward the GPT model itself
+        # forward the GPT model itself (RoPE handles position in attention)
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
-        pos_emb = self.transformer.wpe(pos) # position embeddings of shape (t, n_embd)
-        x = self.transformer.drop(tok_emb + pos_emb)
+        x = self.transformer.drop(tok_emb)
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
@@ -193,11 +210,8 @@ class GPT(nn.Module):
 
     def crop_block_size(self, block_size):
         # model surgery to decrease the block size if necessary
-        # e.g. we may load the GPT2 pretrained model checkpoint (block size 1024)
-        # but want to use a smaller block size for some smaller, simpler model
         assert block_size <= self.config.block_size
         self.config.block_size = block_size
-        self.transformer.wpe.weight = nn.Parameter(self.transformer.wpe.weight[:block_size])
         for block in self.transformer.h:
             if hasattr(block.attn, 'bias'):
                 block.attn.bias = block.attn.bias[:,:,:block_size,:block_size]
