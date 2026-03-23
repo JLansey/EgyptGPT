@@ -24,10 +24,10 @@ n_head = 6
 n_embd = 384
 dropout = 0.0
 
-learning_rate = 2e-3 # moderate increase
+learning_rate = 1e-3 # original LR
 max_iters = 50000
 lr_decay_iters = 50000 # time budget is binding constraint
-min_lr = 2e-4 # learning_rate / 10
+min_lr = 1e-4 # learning_rate / 10
 beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
 
 warmup_iters = 100 # not super necessary potentially
