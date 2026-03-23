@@ -61,6 +61,8 @@ weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0 # clip gradients at this value, or disable if == 0.0
+# autoresearch time budget
+time_budget = 300 # training time budget in seconds (5 minutes), 0 to disable
 # learning rate decay settings
 decay_lr = True # whether to decay the learning rate
 warmup_iters = 2000 # how many steps to warm up for
@@ -249,6 +251,7 @@ if wandb_log and master_process:
 # training loop
 X, Y = get_batch('train') # fetch the very first batch
 t0 = time.time()
+t_start_training = time.time()
 local_iter_num = 0 # number of iterations in the lifetime of this process
 raw_model = model.module if ddp else model # unwrap DDP container if needed
 running_mfu = -1.0
@@ -329,8 +332,26 @@ while True:
     local_iter_num += 1
 
     # termination conditions
+    training_elapsed = time.time() - t_start_training
     if iter_num > max_iters:
         break
+    if time_budget > 0 and training_elapsed >= time_budget:
+        break
+
+# final evaluation and summary
+training_elapsed = time.time() - t_start_training
+losses = estimate_loss()
+val_loss = losses['val'].item()
+val_bpb = val_loss / math.log(2)
+peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
+
+print("---")
+print(f"val_bpb: {val_bpb:.6f}")
+print(f"val_loss: {val_loss:.6f}")
+print(f"training_seconds: {training_elapsed:.1f}")
+print(f"peak_vram_mb: {peak_vram_mb:.1f}")
+print(f"num_steps: {iter_num}")
+print(f"num_params_M: {raw_model.get_num_params() / 1e6:.1f}")
 
 if ddp:
     destroy_process_group()
