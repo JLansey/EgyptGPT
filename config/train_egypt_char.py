@@ -30,7 +30,7 @@ lr_decay_iters = 50000 # time budget is binding constraint
 min_lr = 5e-5 # learning_rate / 10
 beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
 
-warmup_iters = 100 # not super necessary potentially
+warmup_iters = 20 # short warmup for stable LR
 
 # on macbook also add
 # device = 'cpu'  # run on cpu only
