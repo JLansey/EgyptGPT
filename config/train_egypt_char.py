@@ -9,7 +9,7 @@ log_interval = 10 # don't print too too often
 # we expect to overfit on this small dataset, so only save when val improves
 always_save_checkpoint = False
 
-wandb_log = True # override via command line if you like
+wandb_log = False # disabled for autoresearch
 wandb_project = 'glyph-char'
 wandb_run_name = 'mini-gpt'
 
