@@ -14,11 +14,12 @@ wandb_project = 'glyph-char'
 wandb_run_name = 'mini-gpt'
 
 dataset = 'egypt_char'
+sign_level = True  # sign-level tokenization
 gradient_accumulation_steps = 1
 batch_size = 32
-block_size = 256 # context of up to 256 previous characters
+block_size = 256 # context of up to 256 sign tokens (~870 chars)
 
-# smaller model for more steps
+# model sized for sign-level vocab (~781 tokens)
 n_layer = 3
 n_head = 4
 n_embd = 256
@@ -28,7 +29,7 @@ learning_rate = 1e-3 # higher LR with cosine decay
 max_iters = 50000
 lr_decay_iters = 2200 # slightly faster decay to reach min_lr
 min_lr = 0 # decay to zero
-beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+beta2 = 0.99
 
 warmup_iters = 20 # short warmup for stable LR
 grad_clip = 0.5 # tighter gradient clipping
