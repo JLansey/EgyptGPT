@@ -1,5 +1,3 @@
-import matviz
-from matviz.etl import write_string
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
@@ -94,11 +92,11 @@ def gardiner_to_hieroglyphics(gardiner_string):
     return '\n'.join(convert_line(line) for line in gardiner_string.splitlines()).replace("-", "")
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load model directly
-tokenizer = AutoTokenizer.from_pretrained("mattiadc/hiero-transformer")
-model = AutoModelForSeq2SeqLM.from_pretrained("mattiadc/hiero-transformer").to(device)
+# # Load model directly
+# tokenizer = AutoTokenizer.from_pretrained("mattiadc/hiero-transformer")
+# model = AutoModelForSeq2SeqLM.from_pretrained("mattiadc/hiero-transformer").to(device)
 
 
 # # Example usage

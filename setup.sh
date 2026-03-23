@@ -15,4 +15,4 @@ pip install gardiner2unicode
 pip install wikitextparser
 
 
-pip install matviz
+# matviz removed — write_string inlined in prepare.py

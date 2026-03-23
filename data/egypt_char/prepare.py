@@ -10,7 +10,9 @@ import requests
 import numpy as np
 
 from hiero_transformer import utils
-from matviz.etl import write_string
+def write_string(name, txt):
+    with open(name, 'w') as file:
+        return file.write(txt)
 from tqdm import tqdm
 
 # download the tiny shakespeare dataset
