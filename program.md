@@ -1,6 +1,6 @@
 # EgyptGPT autoresearch
 
-Autonomous research agent for optimizing a character-level GPT model trained on Egyptian hieroglyphic sequences.
+Autonomous research agent for optimizing a GPT model trained on Egyptian hieroglyphic sequences. The goal is to model hieroglyphics well — we don't care about predicting ASCII characters of Gardiner codes specifically.
 
 ## Setup
 
@@ -21,18 +21,26 @@ Once you get confirmation, kick off the experimentation.
 
 ## Context
 
-This is a character-level language model trained on Egyptian hieroglyphic sequences in Gardiner notation. The data:
+This is a language model trained on Egyptian hieroglyphic sequences in Gardiner notation. The data:
 - ~1.4M characters of cleaned hieroglyphic text
 - 44-character vocabulary (letters A-Z, digits 0-9, and a few punctuation/special chars)
 - 90/10 train/val split stored as numpy memmap files (train.bin, val.bin)
 - Character-to-integer mapping in meta.pkl
 
-The baseline model is standard nanoGPT (GPT-2 style):
-- 6 layers, 6 heads, 384 embedding dim (~10M params)
-- 256 token context window
-- LayerNorm, GELU activation, learned position embeddings
-- AdamW optimizer with cosine LR schedule
-- Dropout 0.2
+**Critical data insight**: The cleaned data is space-separated Gardiner sign codes like `M23 X1 D1 T28 O6 G5 L1`, with newlines between inscriptions. Each sign (e.g. `D21`, `Aa1`, `G192`) represents one hieroglyph but costs 2-4 ASCII characters. The data is fully reversible from train.bin back to sign sequences via meta.pkl.
+
+**Data stats** (from prepare.py output):
+- Train: 1,318,239 chars → 369,716 signs (avg 3.57 chars/sign)
+- Val: 146,471 chars → 41,030 signs
+- 1,495 unique signs in train (779 appear ≥5 times, 395 appear only once)
+- 16,949 train inscriptions, 1,922 val inscriptions
+- Separators: space between signs within an inscription, newline between inscriptions, `/` for line breaks within inscriptions
+
+The current best model (from prior run on slower GPU):
+- 3 layers, 4 heads, 256 embedding dim, MLP 3x expansion (~2.0M params)
+- ReLU² activation, RoPE positional embeddings
+- No dropout, grad_clip 0.5, min_lr 0, lr_decay_iters 2200
+- Best val_bpb: 1.2907 (char-level)
 
 ## Experimentation
 
@@ -50,10 +58,12 @@ python train.py config/train_egypt_char.py
 
 **What you CANNOT modify:**
 
-- `data/egypt_char/prepare.py` — data preparation is fixed
+- `data/egypt_char/prepare.py` — data preparation is fixed. Do NOT touch it.
 - Do not install new packages or add dependencies
 
-**The goal is simple: get the lowest val_bpb.** Since this is a character-level model with single-byte ASCII characters, val_bpb = val_loss / ln(2). The time budget is fixed at 5 minutes, so you don't need to worry about training time — it's always 5 minutes. Everything is fair game: architecture, optimizer, hyperparameters, batch size, model size, context length.
+**The goal is simple: get the lowest val_bpb.** val_bpb must always be reported in **bits per character** (the original ASCII characters from prepare.py) so results are comparable across tokenization schemes. For char-level models: val_bpb = val_loss / ln(2). For sign-level models: you must convert back — see the tokenization section below. The time budget is fixed at 5 minutes, so you don't need to worry about training time — it's always 5 minutes. Everything is fair game: architecture, optimizer, hyperparameters, batch size, model size, context length, **and tokenization**.
+
+**Precomputation is free**: Any data preprocessing (building sign-level vocabularies, re-encoding data, caching tokenized sequences) does NOT count toward the 5-minute training budget. You may store precomputed data (e.g. `data/egypt_char/train_signs.bin`) alongside the existing files. Only the actual model training is time-budgeted.
 
 **VRAM** is a soft constraint. Some increase is acceptable for meaningful val_bpb gains, but it should not blow up dramatically.
 
@@ -61,9 +71,30 @@ python train.py config/train_egypt_char.py
 
 **The first run**: Your very first run should always be to establish the baseline — run the training script as-is.
 
+## Sign-level tokenization plan
+
+The biggest opportunity is to stop predicting individual ASCII characters and instead predict hieroglyphic signs directly. The current char-level encoding wastes model capacity learning to spell Gardiner codes (e.g. predicting `2`, `1` after `D` to form `D21`) instead of learning hieroglyphic grammar.
+
+**How it works** (all done in train.py, prepare.py is untouched):
+
+1. **At startup (free, not timed)**: Read train.bin/val.bin, decode back to text via meta.pkl, split on spaces/newlines to extract Gardiner signs.
+2. **Build sign vocabulary**: Each unique Gardiner sign (e.g. `D21`, `M23`, `Aa1`) becomes one token. Newline = inscription separator token. `/` = line-break token. Rare signs (appearing <5 times in train) get mapped to a special `<UNK>` token, or optionally to category-level fallback tokens (e.g. all rare D-signs → `<D_rare>`).
+3. **Re-encode**: Convert sign sequences to integer IDs, save as new .bin files (e.g. `train_signs.bin`, `val_signs.bin`) and a new `meta_signs.pkl`.
+4. **Train on sign tokens**: The model now has vocab_size ≈ 800-1500 (depending on rare-sign handling), sequences are ~3.5x shorter, and each token is a meaningful hieroglyphic unit.
+5. **Compute val_bpb in chars**: After sign-level training, convert the sign-level loss back to bits-per-character for fair comparison. Method: `val_bpb_chars = (total_sign_cross_entropy) / (total_chars * ln(2))`. In practice: each sign token "covers" a known number of characters (the sign string length + 1 for the space/newline separator). Track the total char count covered by the val set and divide total val loss by it.
+
+**Expected vocab size**: ~800 tokens (signs appearing ≥5 times + special tokens). This is much larger than 44 but still small — embedding table is cheap.
+
+**Expected win**: 3.5x shorter sequences means 3.5x more context in the same window, and the model learns sign-level patterns (e.g. `M23 X1` = "nsw" = king) instead of character spelling patterns.
+
+**Tokenization variants to try** (in order of priority):
+1. **Simple sign-level**: each Gardiner code = 1 token. This is the big win.
+2. **BPE over signs**: after sign-level tokenization, run BPE to merge common sign bigrams (e.g. `M23 X1` → single token). Could help if common phrases are very frequent.
+3. **Category + number split**: tokenize `D21` as two tokens `D` + `21`. Smaller vocab (~60 tokens), lets model learn category-level patterns. Sequences are still shorter than char-level (2 tokens vs 3-4 chars).
+
 ## Ideas to explore
 
-These are techniques from state-of-the-art small LLM research. The agent is encouraged to try them, but should exercise judgment about what's likely to help given this specific small, character-level task.
+These are techniques from state-of-the-art small LLM research. The agent is encouraged to try them, but should exercise judgment about what's likely to help given this specific task.
 
 ### Architecture changes
 
