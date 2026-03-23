@@ -26,7 +26,7 @@ dropout = 0.0
 
 learning_rate = 1e-3 # higher LR with cosine decay
 max_iters = 50000
-lr_decay_iters = 2500 # match approx actual steps for proper cosine decay
+lr_decay_iters = 2200 # slightly faster decay to reach min_lr
 min_lr = 0 # decay to zero
 beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
 
