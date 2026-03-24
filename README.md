@@ -3,6 +3,16 @@
 
 ![nanoGPT](assets/nanogpt.jpg)
 
+## Autoresearch results
+
+An autonomous Claude agent ran 89 experiments in 7.4 hours on a single L4 GPU, optimizing a GPT trained on Egyptian hieroglyphic sequences. The biggest wins: shrinking the model for faster iteration under a fixed 5-minute training budget, and switching from character-level to sign-level tokenization. Final val_bpb: **1.105** (43% improvement over baseline).
+
+![Autoresearch experiment progress](experiment_progress.png)
+
+See [RESEARCH_REPORT.md](RESEARCH_REPORT.md) for full details.
+
+---
+
 The simplest, fastest repository for training/finetuning medium-sized GPTs. It is a rewrite of [minGPT](https://github.com/karpathy/minGPT) that prioritizes teeth over education. Still under active development, but currently the file `train.py` reproduces GPT-2 (124M) on OpenWebText, running on a single 8XA100 40GB node in about 4 days of training. The code itself is plain and readable: `train.py` is a ~300-line boilerplate training loop and `model.py` a ~300-line GPT model definition, which can optionally load the GPT-2 weights from OpenAI. That's it.
 
 ## EgyptGPT local outputs
