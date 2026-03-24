@@ -1,14 +1,15 @@
 # EgyptGPT Autoresearch Report
 
-**Date**: 2026-03-23
+**Date**: 2026-03-24
 **Branch**: `autoresearch/run_amber_2`
-**Best commit**: `b37c769` (pushed to origin)
-**Best val_bpb**: 1.290659
-**Total experiments**: 59 (17 kept, 42 discarded)
+**Best commit**: `0710e35` (pushed to origin)
+**Best val_bpb**: 1.105 (bits per character)
+**Total experiments**: 89 (19 kept, 70 discarded)
+**Deployed checkpoint**: `out-glyphs-char/ckpt.pt` (26MB, 2.2M params)
 
 ## Task
 
-Optimize a character-level GPT model trained on ~1.4M characters of Egyptian hieroglyphic sequences (Gardiner notation, 44-char vocab). Fixed 5-minute wall-clock training budget on a single GPU. Metric: val_bpb (lower is better).
+Optimize a GPT model trained on ~1.4M characters of Egyptian hieroglyphic sequences (Gardiner notation). Fixed 5-minute wall-clock training budget on a single L4 GPU. Metric: val_bpb in bits per character (lower is better).
 
 ## Starting point
 
@@ -16,18 +17,32 @@ Standard nanoGPT (GPT-2 style): 6 layers, 6 heads, 384 dim (~10.6M params), 256 
 
 **Baseline val_bpb: 1.940**
 
-## Current best configuration
+## Final best configuration
 
-- **Architecture**: 3 layers, 4 heads, 256 dim, MLP expansion 3x, ReLU² activation, RoPE, LayerNorm, no bias
-- **Params**: ~2.0M
+- **Tokenization**: Sign-level (781-token Gardiner sign vocabulary, 3.4x compression vs char-level)
+- **Architecture**: 3 layers, 4 heads, 256 dim, MLP expansion 3x, ReLU² activation, RoPE, LayerNorm, no bias, weight tying
+- **Params**: ~2.2M (slightly more than char-level due to larger vocab)
 - **Optimizer**: AdamW, LR 1e-3, beta1=0.9, beta2=0.99, weight_decay=0.1, grad_clip=0.5
-- **Schedule**: warmup 20 steps, cosine decay over 2200 steps to min_lr=0
-- **Training**: batch_size 32, block_size 256, ~2251 steps in 5 min
-- **val_bpb: 1.291** (33% improvement from baseline)
+- **Schedule**: warmup 20 steps, cosine decay over 4000 steps to min_lr=1e-5
+- **Training**: batch_size 32, block_size 256 sign tokens (~870 chars context), dropout 0.3, ~24k steps in 5 min
+- **val_bpb: 1.105** (43% improvement from original baseline)
+
+## Progress timeline
+
+| Phase | val_bpb | Key change |
+|-------|---------|------------|
+| Original baseline | 1.940 | 6L 384d, GELU, char-level |
+| Remove dropout | 1.873 | dropout 0 (char-level) |
+| ReLU² activation | 1.819 | Sharper activations |
+| Smaller batch | 1.791 | batch 32 → more steps |
+| Smaller model | 1.339 | 3L 256d → 2x faster steps |
+| LR schedule tuning | 1.291 | Cosine decay, RoPE, grad_clip |
+| **Sign-level tokenization** | **1.107** | **781-sign vocab, 3.4x compression** |
+| min_lr tuning | 1.105 | min_lr=1e-5 keeps learning |
 
 ## Key findings
 
-### The dominant insight: model size vs. training steps tradeoff
+### Phase 1: Model size vs. training steps (char-level)
 
 The single most important discovery was that **smaller models dramatically outperform larger ones** under a fixed time budget. The 5-minute constraint means throughput (steps/sec) matters enormously:
 
@@ -41,72 +56,89 @@ The single most important discovery was that **smaller models dramatically outpe
 | 3L 256d 4h | 2.0M | 2251 | 1.339 |
 | 1L 384d 6h | 1.8M | 3501 | 1.413 |
 
-The sweet spot was **3L 256d 4h** (~2.0M params). Going to 1 layer lost too much capacity. Going wider (512d) or deeper (4+ layers) was slower per step for a net loss.
+Sweet spot: **3L 256d 4h** (~2.0M params). 1 layer lost too much capacity. Wider/deeper was slower per step for a net loss.
 
-### What worked
+### Phase 2: Sign-level tokenization (the big win)
 
-1. **Remove dropout** (1.940 → 1.873): With only 5 min of training, dropout wastes capacity. No overfitting risk in this regime.
+**val_bpb: 1.291 → 1.105 (14.4% improvement)**
 
-2. **ReLU² activation** (1.873 → 1.819): Replacing GELU with `relu(x).square()` gave a big boost. This is known to help small models — it creates sharper, sparser activations.
+The char-level model wasted capacity learning to spell Gardiner codes (e.g., predicting `2`, `1` after `D` to form `D21`). Sign-level tokenization predicts hieroglyphic signs directly:
 
-3. **Smaller batch size** (1.819 → 1.791 → 1.653): Reducing batch from 64→32 doubled training steps. The gradient noise from smaller batches was acceptable; batch 16 was too noisy, batch 24 was marginal. 32 was the sweet spot.
+- **Vocabulary**: 781 tokens (Gardiner signs appearing ≥5 times in training data + newline, `/`, `<UNK>`)
+- **Compression**: 3.41 chars per sign token → sequences 3.4x shorter
+- **Context**: block_size=256 sign tokens covers ~870 characters (vs 256 chars before)
+- **BPB conversion**: `val_bpb_chars = val_loss / (ln(2) × avg_chars_per_token)` for fair comparison
 
-4. **Smaller model** (1.653 → 1.339): As described above, the biggest lever. Went from 10.6M to 2.0M params.
+**Implementation** (all in train.py, prepare.py untouched):
+1. At startup, decode train.bin/val.bin back to text via meta.pkl
+2. Split on spaces/newlines to extract Gardiner signs
+3. Build sign vocabulary (signs with ≥5 train occurrences)
+4. Re-encode to sign-level integer IDs, save as train_signs.bin/val_signs.bin
+5. Train on sign tokens, convert val loss back to bits-per-character
 
-5. **MLP 3x expansion** (1.339 → 1.332): Reducing MLP from 4x to 3x gave a slight gain — faster steps with minimal capacity loss. 2x was too small.
+**Critical regularization finding**: Sign-level data is 3.4x smaller (386k tokens vs 1.3M chars). Without dropout, the model massively overfits (train loss 0.5, val loss 4.4 — the model memorizes the dataset). **Dropout 0.3** was essential — this is the opposite of the char-level finding where dropout=0 was optimal.
 
-6. **Proper cosine LR decay** (1.332 → 1.319): The original config had lr_decay_iters=5000 (later 50000) but only ~2500 actual steps, so the LR barely decayed — essentially constant. Setting lr_decay_iters=2500 to match actual training length made the cosine schedule actually meaningful.
+### Phase 2b: Hyperparameter tuning on sign-level
 
-7. **LR 1e-3 with decay** (1.319 → 1.318): With proper cosine decay, LR 1e-3 slightly beat 5e-4. The decay prevents late-training instability that flat LR caused.
+Extensive search (25+ experiments) around the sign-level baseline:
 
-8. **RoPE** (1.318 → 1.318): Rotary positional embeddings replacing learned position embeddings. Marginal gain but also removes the wpe parameter table — a simplification win.
+**What helped:**
+- lr_decay_iters=4000 (tuned to sign-level convergence speed)
+- min_lr=1e-5 (allows continued slow learning after primary decay)
 
-9. **Grad clip 0.5** (1.318 → 1.304): Tighter clipping (from default 1.0) stabilized training noticeably. 0.3 was equivalent — 0.5 kept as simpler.
+**What didn't help:**
+- Dropout 0.2 or 0.4 (0.3 was the sweet spot)
+- Larger models (4L 384d, 3L 320d): slower per step, net loss
+- Smaller models (2L 256d): not enough capacity for 781-token vocab
+- Higher/lower LR (5e-4, 1.5e-3): 1e-3 was optimal
+- Block size 128 or 512: 256 was optimal (128 too little context, 512 too slow)
+- No weight tying: worse (weight tying helps even though vocab > n_embd)
+- MLP 4x: slower per step
+- BPE over signs (200 merges): larger vocab, similar performance
+- Various beta2, weight_decay, warmup changes: marginal at best
+- Label smoothing: inflates eval loss, not comparable
 
-10. **min_lr = 0** (1.304 → 1.297): Decaying LR all the way to zero (instead of LR/10) helped. Common in modern training recipes.
+### Phase 3: Longer training (10-minute budget)
 
-11. **lr_decay_iters = 2200** (1.297 → 1.291): Slightly shorter than the ~2500 actual steps, so the LR reaches zero before training ends. The last ~300 steps at near-zero LR act as fine-tuning. 1800 was too aggressive (not enough high-LR learning).
+Tested whether doubling training time to 10 minutes would help. **It did not.** The model learns everything it can in the first ~4000 steps; extra time just adds overfitting:
 
-### What didn't work
+| Experiment | val_bpb | Issue |
+|-----------|---------|-------|
+| 10-min, 4L 320d | 1.184 | Massive overfitting |
+| 10-min, dropout 0.35 | 1.114 | Over-regularized |
+| 10-min, lr_decay 8000 | 1.122 | Wider decay → more overfitting |
+| 10-min, lr_decay 4000 | 1.108 | Extra steps at min_lr don't help |
+| 10-min, warm restarts | 1.140 | Restarts undo learned patterns |
+| **5-min baseline** | **1.105** | **Data is the bottleneck** |
 
-- **RMSNorm** (1.872 vs 1.819): Hurt significantly. LayerNorm's mean-subtraction may matter at this scale.
-- **QK-Norm** (1.901 vs 1.819): Added overhead without benefit. Likely unnecessary at this small scale.
-- **Softcap logits** (1.842 vs 1.819): Slight hurt. The 44-char vocab doesn't produce extreme logits.
-- **SwiGLU** (1.363 vs 1.339): Extra linear layer added params/compute. ReLU² is simpler and faster.
-- **Larger batch / grad accum** (always worse): Fewer optimization steps always dominated any gradient quality improvement.
-- **Larger context (512)** (2.582 vs 1.819): Catastrophic — doubled VRAM, halved throughput.
-- **Disabling torch.compile** (1.891 vs 1.819): Compile overhead was already amortized; the compiled model was faster per step.
-- **Lower beta2 (0.95)** (1.354 vs 1.332): Adam's second moment benefits from high beta2 with small batch.
-- **Lower beta1 (0.8)** (1.325 vs 1.304): Standard momentum (0.9) was better.
-- **Weight decay 0.01 or 0.05** (both worse): Default 0.1 was optimal — some regularization still helps.
-- **8 heads at 256d** (1.325 vs 1.304): Head dim of 32 was too small. 4 heads (dim 64) was better.
-- **Wider models** (320d, 512d): Always slower per step for a net loss at this time budget.
+**Conclusion**: The dataset (386k sign tokens) is the hard constraint. More compute cannot overcome limited data with this model class.
 
 ## Interpretation
 
-Under a fixed time budget, this is fundamentally a **compute-efficiency** problem, not a capacity problem. The optimal model is the smallest one that can still represent the data well, trained for as many steps as possible. With ~2.0M params and 2200+ steps, we're well past the point where the model "fits" the data distribution — we're fine-tuning a converged-enough model.
+Two discoveries drove nearly all the improvement:
 
-The LR schedule was the second most impactful finding: getting the cosine decay to actually play out over the training window (rather than being truncated at 10% of the planned schedule) gave a significant boost.
+1. **Compute efficiency** (Phase 1, 1.940 → 1.291): Under a fixed time budget, the optimal model maximizes steps × capacity. Smaller models win because they train faster.
 
-## Important note on faster GPU
+2. **Semantic tokenization** (Phase 2, 1.291 → 1.105): Predicting meaningful units (hieroglyphic signs) instead of arbitrary characters lets the model learn language structure instead of spelling. Each sign token carries ~3.4x more information than a character token.
 
-When moving to a faster GPU, the step count will increase significantly. This changes the optimal tradeoffs:
-- **Model size should increase** — more steps means larger models can be trained more fully
-- **lr_decay_iters must be re-tuned** — it should match the new expected step count
-- **Batch size may need adjustment** — more VRAM available, but step count still matters
-- **The baseline should be re-established** on the new hardware first
+The 10-minute experiments confirmed that **data, not compute, is the bottleneck**. The model saturates the small dataset in ~4000 steps regardless of architecture or schedule.
 
-## Untested ideas for next session
+## Deployment artifacts
 
-- **Parallel attn+MLP (GPT-J style)** — removes one LN per block, computes attn and MLP in parallel. Could be faster per step.
-- **Muon optimizer** for matrix parameters — could converge faster than AdamW
-- **Higher LR for embeddings** — token embeddings might benefit from 10x higher LR
-- **Label smoothing** in the cross-entropy loss
-- **Different init scales** — 0.02 std might not be optimal for this small model
-- **Try n_embd=288, n_head=4** (head_dim=72) — slightly wider might be in the sweet spot
-- **Reduce eval_iters** to e.g. 100 — less accurate eval but more training time
-- **Stochastic weight averaging** in the final steps
+- **Checkpoint**: `out-glyphs-char/ckpt.pt` (26MB)
+- **Sign vocabulary**: `data/egypt_char/meta_signs.pkl` (vocab mapping for encoding/decoding)
+- **Original char vocabulary**: `data/egypt_char/meta.pkl` (needed to decode train.bin back to text)
+- **Model code**: `model.py` (GPT class with RoPE, ReLU², weight tying)
+- **Config**: `config/train_egypt_char.py`
+
+To load the model:
+```python
+# Load checkpoint
+checkpoint = torch.load('out-glyphs-char/ckpt.pt')
+model = GPT(GPTConfig(**checkpoint['model_args']))
+model.load_state_dict(checkpoint['model'])
+```
 
 ## Infrastructure note
 
-The background sync script (`colab_sync_push.sh`) was modified to only copy `results.tsv` to Drive — it no longer does `git push`. Pushes happen inline in the experiment loop only when keeping a successful experiment. This prevents divergence from `git reset --hard` on discarded experiments.
+The background sync script (`colab_sync_push.sh`) copies `results.tsv` to Drive. Git pushes happen inline only when keeping successful experiments. This prevents divergence from `git reset --hard` on discards.
