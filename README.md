@@ -1,12 +1,19 @@
 # Glyph GPT
 
-Glyph GPT is a hieroglyphic language-model project by Jonathan Lansey.
-It descends from Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT), trained via Andrej's [autoresearch](https://github.com/karpathy/autoresearch) paradigm, exclusively on hieroglyphic texts prepared by Mattia De Cao.
-It generates Gardiner-code sequences that are translated into English using Mattia's [`hiero_transformer`](https://github.com/mattia-decao/hiero-transformer), built on Meta's M2M-100 and fine-tuned on the hieroglyphics dataset.
+The best hieroglyphic author in a thousand years. It descends from Andrej Karpathy's [nanoGPT](https://github.com/karpathy/nanoGPT), trained via Andrej's [autoresearch](https://github.com/karpathy/autoresearch) paradigm, exclusively on hieroglyphic texts prepared by Mattia De Cao.
+The texts are translated into English using Mattia's [`hiero_transformer`](https://github.com/mattia-decao/hiero-transformer), built on Meta's M2M-100 and fine-tuned on the same hieroglyphics dataset.
 
-Live site: [jonathan.lansey.net/glyphgpt](https://jonathan.lansey.net/glyphgpt)
+## Run Autoresearch in Colab
+To get autoresearch to work with colab, we save results to google drive automatically, set up a researcher user for access to claude with 'dangerously-skip-permissions' and access to github tokens.
 
-## Autoresearch Results (Topline)
+[Open `autoresearch_colab.ipynb`](autoresearch_colab.ipynb)
+
+## Live site:
+[jonathan.lansey.net/glyphgpt](https://jonathan.lansey.net/glyphgpt)
+
+![Glyph GPT website screenshot](assets/glyphgpt-live-site-screenshot.png)
+
+## Autoresearch Results
 
 An autonomous research run optimized the model with a fixed 5-minute budget per experiment:
 
