@@ -9,28 +9,30 @@ log_interval = 10 # don't print too too often
 # we expect to overfit on this small dataset, so only save when val improves
 always_save_checkpoint = False
 
-wandb_log = False # override via command line if you like
+wandb_log = False # disabled for autoresearch
 wandb_project = 'glyph-char'
 wandb_run_name = 'mini-gpt'
 
 dataset = 'egypt_char'
+sign_level = True  # sign-level tokenization
 gradient_accumulation_steps = 1
-batch_size = 64
-block_size = 256 # context of up to 256 previous characters
+batch_size = 32
+block_size = 256 # context of up to 256 sign tokens (~870 chars)
 
-# baby GPT model :)
-n_layer = 6
-n_head = 6
-n_embd = 384
-dropout = 0.2
+# model sized for sign-level vocab (~781 tokens)
+n_layer = 3
+n_head = 4
+n_embd = 256
+dropout = 0.3  # regularize against overfitting on smaller sign-level dataset
 
-learning_rate = 1e-3 # with baby networks can afford to go a bit higher
-max_iters = 5000
-lr_decay_iters = 5000 # make equal to max_iters usually
-min_lr = 1e-4 # learning_rate / 10 usually
-beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+learning_rate = 1e-3
+max_iters = 50000
+lr_decay_iters = 4000  # shorter decay
+min_lr = 1e-5
+beta2 = 0.99
 
-warmup_iters = 100 # not super necessary potentially
+warmup_iters = 20
+grad_clip = 0.5
 
 # on macbook also add
 # device = 'cpu'  # run on cpu only

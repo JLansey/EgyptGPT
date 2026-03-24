@@ -63,6 +63,7 @@ beta2 = 0.95
 grad_clip = 1.0 # clip gradients at this value, or disable if == 0.0
 # autoresearch time budget
 time_budget = 300 # training time budget in seconds (5 minutes), 0 to disable
+sign_level = False # use sign-level tokenization instead of char-level
 # learning rate decay settings
 decay_lr = True # whether to decay the learning rate
 warmup_iters = 2000 # how many steps to warm up for
@@ -115,18 +116,30 @@ ctx = nullcontext() if device_type == 'cpu' else torch.amp.autocast(device_type=
 
 # poor man's data loader
 data_dir = os.path.join('data', dataset)
+# sign-level: use different data files
+if sign_level:
+    train_bin = os.path.join(data_dir, 'train_signs.bin')
+    val_bin = os.path.join(data_dir, 'val_signs.bin')
+else:
+    train_bin = os.path.join(data_dir, 'train.bin')
+    val_bin = os.path.join(data_dir, 'val.bin')
+avg_chars_per_sign_token = 1.0  # default for char-level
+if sign_level:
+    sign_meta_path = os.path.join(data_dir, 'meta_signs.pkl')
+    with open(sign_meta_path, 'rb') as f:
+        sign_meta = pickle.load(f)
+    avg_chars_per_sign_token = sign_meta['avg_chars_per_token']
+    print(f"sign-level tokenization: avg {avg_chars_per_sign_token:.3f} chars/token")
+
 def get_batch(split):
-    # We recreate np.memmap every batch to avoid a memory leak, as per
-    # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
     if split == 'train':
-        data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
+        data = np.memmap(train_bin, dtype=np.uint16, mode='r')
     else:
-        data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
+        data = np.memmap(val_bin, dtype=np.uint16, mode='r')
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
     y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
     if device_type == 'cuda':
-        # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
         x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
     else:
         x, y = x.to(device), y.to(device)
@@ -137,7 +150,10 @@ iter_num = 0
 best_val_loss = 1e9
 
 # attempt to derive vocab_size from the dataset
-meta_path = os.path.join(data_dir, 'meta.pkl')
+if sign_level:
+    meta_path = os.path.join(data_dir, 'meta_signs.pkl')
+else:
+    meta_path = os.path.join(data_dir, 'meta.pkl')
 meta_vocab_size = None
 if os.path.exists(meta_path):
     with open(meta_path, 'rb') as f:
@@ -342,7 +358,9 @@ while True:
 training_elapsed = time.time() - t_start_training
 losses = estimate_loss()
 val_loss = losses['val'].item()
-val_bpb = val_loss / math.log(2)
+# For sign-level: convert sign-level loss to bits per character
+# val_bpb_chars = val_loss_per_sign / (avg_chars_per_sign * ln(2))
+val_bpb = val_loss / (math.log(2) * avg_chars_per_sign_token)
 peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
 
 print("---")
