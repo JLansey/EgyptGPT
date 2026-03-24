@@ -14,3 +14,6 @@ venv/
 
 *.json
 results.tsv
+
+# Local EgyptGPT output artifacts from generation / translation / rating runs
+out/**

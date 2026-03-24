@@ -5,6 +5,23 @@
 
 The simplest, fastest repository for training/finetuning medium-sized GPTs. It is a rewrite of [minGPT](https://github.com/karpathy/minGPT) that prioritizes teeth over education. Still under active development, but currently the file `train.py` reproduces GPT-2 (124M) on OpenWebText, running on a single 8XA100 40GB node in about 4 days of training. The code itself is plain and readable: `train.py` is a ~300-line boilerplate training loop and `model.py` a ~300-line GPT model definition, which can optionally load the GPT-2 weights from OpenAI. That's it.
 
+## EgyptGPT local outputs
+
+This repo is also being used as an EgyptGPT workspace, and the local experiment outputs are now organized around the three-step pipeline:
+
+1. Generate Gardiner-sign sequences.
+2. Translate those sequences into English.
+3. Rate the translations for quality and interest.
+
+All local run artifacts now live under `out/`, which is gitignored on purpose. The layout separates the older temperature-sweep outputs from the larger newer-model outputs so it is easy to compare them without cluttering the repo root.
+
+- `out/01-generate/` stores raw generated Gardiner text files.
+- `out/02-translate/` stores translated CSVs.
+- `out/03-rate/` stores rating inputs and scored outputs.
+- `notebooks/` stores local exploratory notebooks that were previously loose in the repo root.
+
+See [OUTPUTS.md](OUTPUTS.md) for the exact directory structure and the meaning of each file.
+
 ![repro124m](assets/gpt2_124M_loss.png)
 
 Because the code is so simple, it is very easy to hack to your needs, train new models from scratch, or finetune pretrained checkpoints (e.g. biggest one currently available as a starting point would be the GPT-2 1.3B model from OpenAI).
