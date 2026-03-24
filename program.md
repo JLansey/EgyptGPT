@@ -174,7 +174,7 @@ c3d4e5f	1.901000	2.0	discard	switch to ReLU squared
 d4e5f6g	0.000000	0.0	crash	double model width (OOM)
 ```
 
-Do not commit results.tsv — it must stay untracked to survive git resets on discarded experiments. If running on Colab, also copy it to Google Drive after each experiment for persistence.
+Do not commit results.tsv — it must stay untracked to survive git resets on discarded experiments.
 
 ## The experiment loop
 
@@ -188,8 +188,8 @@ LOOP FOREVER:
 4. Run the experiment: `python train.py config/train_egypt_char.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
 5. Read out the results: `grep "^val_bpb:\|^peak_vram_mb:" run.log`
 6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
-7. Record the results in results.tsv (do NOT commit results.tsv — it must survive git resets)
-8. If val_bpb improved (lower), you "advance" the branch: keep the commit AND `git push` to origin. This ensures every keeper is safely stored on GitHub immediately. Make sure `GITHUB_TOKEN` and `GIT_ASKPASS` are exported in the shell session for push to work.
+7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
+8. If val_bpb improved (lower), you "advance" the branch: keep the commit AND `git push` to origin. This ensures every keeper is safely stored on GitHub immediately.
 9. If val_bpb is equal or worse, you git reset back to where you started (never push discards — the background sync script only copies results.tsv to Drive, it does NOT push git)
 
 The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
