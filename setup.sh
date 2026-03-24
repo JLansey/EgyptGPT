@@ -15,5 +15,3 @@ pip install numpy transformers datasets tiktoken wandb tqdm triton
 pip install gardiner2unicode
 pip install wikitextparser
 
-
-# matviz removed — write_string inlined in prepare.py

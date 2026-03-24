@@ -22,6 +22,9 @@ All local run artifacts now live under `out/`, which is gitignored on purpose. T
 
 See [OUTPUTS.md](OUTPUTS.md) for the exact directory structure and the meaning of each file.
 
+For people who want to learn from the rated translation results, `results.tsv` is also available on Google Drive:
+https://drive.google.com/file/d/1YRD_PLzrjNeXFVgT48jgUXDxh0Q8cCqg/view?usp=sharing
+
 ![repro124m](assets/gpt2_124M_loss.png)
 
 Because the code is so simple, it is very easy to hack to your needs, train new models from scratch, or finetune pretrained checkpoints (e.g. biggest one currently available as a starting point would be the GPT-2 1.3B model from OpenAI).
